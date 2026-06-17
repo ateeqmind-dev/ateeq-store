@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Storefront</title>
+    <style>
+        :root {
+            --bg: #f3f4f6;
+            --surface: #ffffff;
+            --text: #111827;
+            --text-light: #6b7280;
+            --primary: #2563eb;
+            --border: #e5e7eb;
+        }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            background-color: var(--surface);
+            padding: 1rem 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .search-bar {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 99px;
+            width: 300px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .search-bar:focus { border-color: var(--primary); }
+        main {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+        .card {
+            background: var(--surface);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .card img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-bottom: 1px solid var(--border);
+        }
+        .card-content {
+            padding: 1rem;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .title { font-weight: 600; font-size: 1.1rem; margin: 0 0 0.5rem 0; }
+        .price { font-weight: 700; color: var(--primary); font-size: 1.2rem; margin-top: auto; }
+        .loader { text-align: center; padding: 3rem; color: var(--text-light); }
+        
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+        }
+        .modal {
+            background: var(--surface);
+            padding: 2rem;
+            border-radius: 8px;
+            max-width: 600px;
+            width: 90%;
+            position: relative;
+            display: flex;
+            gap: 2rem;
+        }
+        .modal img { width: 50%; object-fit: cover; border-radius: 4px; }
+        .modal-info { width: 50%; }
+        .close-btn {
+            position: absolute; top: 1rem; right: 1rem;
+            background: none; border: none; font-size: 1.5rem; cursor: pointer;
+        }
+        @media (max-width: 600px) {
+            .modal { flex-direction: column; }
+            .modal img, .modal-info { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h2>Storefront</h2>
+        <input type="text" id="searchInput" class="search-bar" placeholder="Search products...">
+    </header>
+
+    <main>
+        <div id="loader" class="loader">Loading products...</div>
+        <div id="productGrid" class="grid"></div>
+    </main>
+
+    <div id="productModal" class="modal-overlay">
+        <div class="modal">
+            <button class="close-btn" onclick="closeModal()">&times;</button>
+            <img id="modalImg" src="" alt="Product">
+            <div class="modal-info">
+                <h2 id="modalTitle"></h2>
+                <h3 id="modalPrice" style="color: var(--primary);"></h3>
+                <p id="modalDesc"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // REPLACE THIS STRING WITH YOUR DEPLOYED APPS SCRIPT URL
+        const API_URL = 'https://script.google.com/macros/s/AKfycbxTdCQZOeD5E9h5_0gFHARI38f_q_SQBXqx98DPjAxWipZIgORfroRZTDuk0W4TT0zc2g/exec';
+        
+        let allProducts = [];
+
+        async function fetchProducts() {
+            try {
+                const response = await fetch(API_URL);
+                allProducts = await response.json();
+                document.getElementById('loader').style.display = 'none';
+                renderProducts(allProducts);
+            } catch (error) {
+                document.getElementById('loader').innerText = 'Error loading products. Check console.';
+                console.error('Fetch error:', error);
+            }
+        }
+
+        function renderProducts(products) {
+            const grid = document.getElementById('productGrid');
+            grid.innerHTML = '';
+            
+            products.forEach(product => {
+                if(!product.title) return; // Skip empty rows
+                
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.onclick = () => openModal(product);
+                
+                card.innerHTML = `
+                    <img src="${product.image || 'https://via.placeholder.com/200'}" alt="${product.title}" loading="lazy">
+                    <div class="card-content">
+                        <h3 class="title">${product.title}</h3>
+                        <div class="price">$${product.price}</div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        // Search Functionality
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const filtered = allProducts.filter(p => 
+                p.title.toLowerCase().includes(searchTerm) || 
+                p.description.toLowerCase().includes(searchTerm)
+            );
+            renderProducts(filtered);
+        });
+
+        // Modal Logic
+        function openModal(product) {
+            document.getElementById('modalImg').src = product.image || 'https://via.placeholder.com/400';
+            document.getElementById('modalTitle').innerText = product.title;
+            document.getElementById('modalPrice').innerText = '$' + product.price;
+            document.getElementById('modalDesc').innerText = product.description;
+            document.getElementById('productModal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('productModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('productModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('productModal')) closeModal();
+        });
+
+        // Initialize
+        fetchProducts();
+    </script>
+</body>
+</html>
